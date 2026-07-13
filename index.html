@@ -53,13 +53,15 @@
 
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Recent Transactions</h2>
-            <p class="text-gray-500 text-sm italic">Transactions will appear here once we set up the read function.</p>
+            <div id="transaction-list" class="space-y-3">
+                <p class="text-gray-500 text-sm italic">Loading transactions...</p>
+            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // Your specific web app's Firebase configuration
         const firebaseConfig = {
@@ -71,16 +73,65 @@
             appId: "1:263782043775:web:472e077f162822cb2f6f4a"
         };
 
-        // Initialize Firebase and Firestore
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Update the Header UI to show it's connected
         const statusBadge = document.getElementById('db-status');
         statusBadge.textContent = "Database Connected";
         statusBadge.className = "bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded";
 
-        // Handle the "Add to Ledger" button click
+        // --- Function to load and display data ---
+        async function loadTransactions() {
+            const listContainer = document.getElementById('transaction-list');
+            
+            try {
+                // Fetch documents ordered by newest first
+                const q = query(collection(db, "transactions"), orderBy("date", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    listContainer.innerHTML = '<p class="text-gray-500 text-sm italic">No transactions yet. Add one above!</p>';
+                    return;
+                }
+
+                listContainer.innerHTML = ''; // Clear the loading text
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    
+                    // Set colors based on transaction type
+                    let amountColor = 'text-blue-600';
+                    let sign = '';
+                    if (data.type === 'income') { amountColor = 'text-green-600'; sign = '+'; }
+                    if (data.type === 'expense') { amountColor = 'text-red-600'; sign = '-'; }
+
+                    // Handle date formatting (fallback if server hasn't timestamped yet)
+                    const dateString = data.date ? data.date.toDate().toLocaleDateString() : 'Just now';
+
+                    // Create the HTML for each item
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center border-b pb-2 last:border-0 last:pb-0';
+                    item.innerHTML = `
+                        <div>
+                            <p class="font-semibold text-gray-800">${data.description} <span class="text-xs text-gray-500 ml-2">(${data.holdingType})</span></p>
+                            <p class="text-xs text-gray-500">${dateString}</p>
+                        </div>
+                        <div class="font-bold ${amountColor}">
+                            ${sign}₹${data.amount}
+                        </div>
+                    `;
+                    listContainer.appendChild(item);
+                });
+            } catch (error) {
+                console.error("Error loading documents: ", error);
+                listContainer.innerHTML = '<p class="text-red-500 text-sm italic">Error loading data. Check console (You might need to create an index in Firebase).</p>';
+            }
+        }
+
+        // Call the load function immediately when the page opens
+        loadTransactions();
+
+        // --- Add button logic ---
         document.getElementById('add-btn').addEventListener('click', async () => {
             const type = document.getElementById('type').value;
             const holding = document.getElementById('holding').value;
@@ -92,25 +143,32 @@
                 return;
             }
 
+            // Change button text while saving
+            const btn = document.getElementById('add-btn');
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+
             try {
-                // Save the data to Firestore
                 await addDoc(collection(db, "transactions"), {
                     type: type,
                     holdingType: holding,
                     amount: Number(amount),
                     description: description,
-                    date: serverTimestamp() // Adds the exact server time
+                    date: serverTimestamp() 
                 });
-
-                alert("Transaction added successfully!");
                 
-                // Clear the form fields
                 document.getElementById('amount').value = '';
                 document.getElementById('description').value = '';
+                
+                // Reload the list automatically after adding
+                await loadTransactions();
 
             } catch (error) {
                 console.error("Error adding document: ", error);
-                alert("Failed to add transaction. Check the console for details.");
+                alert("Failed to add transaction.");
+            } finally {
+                btn.textContent = "Add to Ledger";
+                btn.disabled = false;
             }
         });
     </script>
