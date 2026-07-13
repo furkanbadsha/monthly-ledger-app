@@ -11,7 +11,7 @@
     <div class="max-w-3xl mx-auto">
         <header class="bg-white p-6 rounded-lg shadow-md mb-6 flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-800">Monthly Ledger</h1>
-            <span class="bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded">Firebase Setup Pending</span>
+            <span id="db-status" class="bg-yellow-100 text-yellow-800 text-sm font-semibold px-3 py-1 rounded">Connecting Database...</span>
         </header>
 
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
@@ -23,6 +23,7 @@
                     <select id="type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
                         <option value="income">Income</option>
                         <option value="expense">Expense</option>
+                        <option value="asset">Asset Purchase</option>
                     </select>
                 </div>
 
@@ -45,16 +46,73 @@
                 </div>
 
             </div>
-            <button class="mt-4 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition">
+            <button id="add-btn" class="mt-4 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition">
                 Add to Ledger
             </button>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Recent Transactions</h2>
-            <p class="text-gray-500 text-sm italic">Transactions will appear here once connected to the secure database.</p>
+            <p class="text-gray-500 text-sm italic">Transactions will appear here once we set up the read function.</p>
         </div>
     </div>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Your specific web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAo-RApK6Qx1chxhE_akU4mOyS8BEy5mgg",
+            authDomain: "monthlyledger-6f1b5.firebaseapp.com",
+            projectId: "monthlyledger-6f1b5",
+            storageBucket: "monthlyledger-6f1b5.firebasestorage.app",
+            messagingSenderId: "263782043775",
+            appId: "1:263782043775:web:472e077f162822cb2f6f4a"
+        };
+
+        // Initialize Firebase and Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Update the Header UI to show it's connected
+        const statusBadge = document.getElementById('db-status');
+        statusBadge.textContent = "Database Connected";
+        statusBadge.className = "bg-green-100 text-green-800 text-sm font-semibold px-3 py-1 rounded";
+
+        // Handle the "Add to Ledger" button click
+        document.getElementById('add-btn').addEventListener('click', async () => {
+            const type = document.getElementById('type').value;
+            const holding = document.getElementById('holding').value;
+            const amount = document.getElementById('amount').value;
+            const description = document.getElementById('description').value;
+
+            if (!amount || !description) {
+                alert("Please enter both an amount and a description.");
+                return;
+            }
+
+            try {
+                // Save the data to Firestore
+                await addDoc(collection(db, "transactions"), {
+                    type: type,
+                    holdingType: holding,
+                    amount: Number(amount),
+                    description: description,
+                    date: serverTimestamp() // Adds the exact server time
+                });
+
+                alert("Transaction added successfully!");
+                
+                // Clear the form fields
+                document.getElementById('amount').value = '';
+                document.getElementById('description').value = '';
+
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                alert("Failed to add transaction. Check the console for details.");
+            }
+        });
+    </script>
 </body>
 </html>
